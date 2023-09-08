@@ -80,6 +80,7 @@
                     year = year - 1;
                     // run
                     answer = (year + Math.floor(year / 4) + Math.floor(year / 400) - Math.floor(year / 100) + passedDay[month] + day + leapYear) % 7;
+                    year = year + 1
                     document.getElementById("result").innerHTML = 'Weekday of ' + year + '/' + month + '/' + day + ' is ' + numberToEnglish[answer]
                 }
             }
