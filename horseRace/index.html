@@ -1,0 +1,310 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant-TW" lang="zh-Hant-TW">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+canvas {
+    border: 1px solid #d3d3d3;
+    background-color: #f1f1f1;
+} 
+.styleTopic {
+    color: rgba(153,153,255,1);
+    font-size: xx-large;
+    font-weight: bold;
+}
+
+ .styleText {
+    color: rgba(153, 153, 255, 1);
+    font-size: xx-large;
+}
+.styledButton {
+    border: 0;
+    line-height: 1.5;
+    padding: 0 20px;
+    font-size: 1rem;
+    text-align: center;
+    color: #fff;
+    text-shadow: 1px 1px 1px #000;
+    border-radius: 10px;
+    background-color: rgba(220, 0, 0, 1);
+    background-image: linear-gradient(to top left, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2) 30%, rgba(0, 0, 0, 0));
+    box-shadow: inset 2px 2px 3px rgba(255, 255, 255, 0.6), inset -2px -2px 3px rgba(0, 0, 0, 0.6);
+}
+
+.styledButton:hover {
+    background-color: rgba(255, 0, 0, 1);
+}
+
+.styledButton:active {
+    box-shadow: inset -2px -2px 3px rgba(255, 255, 255, 0.6), inset 2px 2px 3px rgba(0, 0, 0, 0.6);
+}
+</style>
+</head>
+<body>
+<p class="styleText" id="winName"></p>
+<p class="styleText" id="money"></p>
+<input type="text" placeholder="請輸入下注金額" id="betMoney" size="20" style="font-size: 5em;"><br><br>
+<input type="text" placeholder="請預測冠軍" id="betNumber" size="20" maxlength="1" style="font-size: 5em;"><br><br>
+<p class="styleText" id="guide">1為紅色，2為橘色，3為綠色，4為藍色</p>
+<input type="button" id="button" value="確定" style="font-size: 5em;" class="styledButton" onclick="require()">
+<input type="button" class="styledButton" id="stop" value="立即停止" style="font-size: 4em;" onclick="playerAskToStop()">
+<p class="styleText" id="warning"></p>
+
+<script>
+var squares = [];
+var winList = [];
+var finalLine;
+var moneyOfPlayer = 3000;
+var bet = {
+    money : 0,
+    number : 0 
+}
+var nowPlayMode = "setting";
+
+function startGame() {
+    myGameArea.start();
+    var firstY = 4 * getRandom(50) + 40;
+    squares.push(new square(60, firstY, 40, 40, -4, -4, "red", 1));
+    squares.push(new square(60, firstY + 200, 40, 40, -4, -4, "orange", 2));
+    squares.push(new square(60, firstY + 400, 40, 40, -4, -4, "green", 3));
+    squares.push(new square(60, firstY + 600, 40, 40, -4, -4, "skyBlue", 4));
+
+    finalLine = new square(myGameArea.canvas.width - 100, 40, 20, 204 - 40, 0, 0, "yellow");
+    squares.push(new square(0, 0, myGameArea.canvas.width, 40, 0, 0, "black")); //up
+    squares.push(new square(0, 40, 40, myGameArea.canvas.height - 40, 0, 0)); //left
+    squares.push(new square(40, myGameArea.canvas.height - 40, myGameArea.canvas.width - 40, 40, 0, 0)); //down
+    squares.push(new square(myGameArea.canvas.width - 144, 204, 144, myGameArea.canvas.height - (40 + 204), 0, 0)); //right
+
+    squares.push(new square(152, 40, 284, 260, 0, 0));
+    squares.push(new square(152, 372, 284, 244, 0, 0));
+    squares.push(new square(584, 40, 244, 332, 0, 0));
+    squares.push(new square(436, 472, 540, 336, 0, 0));
+    squares.push(new square(40, 716, 152, 326, 0, 0));
+    squares.push(new square(1124, 612, 60, 428, 0, 0));
+    squares.push(new square(1424, 612, 60, 428, 0, 0));
+    squares.push(new square(1288, 960, 40, 80, 0, 0));
+    squares.push(new square(1628, 372, 252, 464, 0, 0));
+    squares.push(new square(1052, 188, 108, 108, 0, 0));
+    squares.push(new square(1376, 196, 148, 96, 0, 0));
+    squares.push(new square(1136, 376, 300, 52, 0, 0));
+}
+
+var myGameArea = {
+    canvas : document.createElement("canvas"),
+    start : function() {
+        this.canvas.width = 1920;
+        this.canvas.height = 1080;
+        this.context = this.canvas.getContext("2d");
+        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        this.interval = setInterval(updateGameArea, 5);
+    }, 
+    clear : function() {
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    },
+    stop : function() {
+        clearInterval(this.interval);
+    }
+}
+
+function updateGameArea() {
+    myGameArea.clear();
+    for(i = 0; i < squares.length; i++) {
+        squares[i].updateLocation();
+        squares[i].x += squares[i].minusX;
+        squares[i].y += squares[i].minusY;
+        squares[i].update();
+    }
+    finalLine.update();
+    document.getElementById("winName").innerHTML = winColor(winList);
+    document.getElementById("money").innerHTML = "Money: " + moneyOfPlayer;
+}
+
+class square {
+    constructor(x, y, width, height, minusX, minusY, color, blockNumber) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.minusX = minusX;
+        this.minusY = minusY;
+        this.color = color;
+        this.blockNumber = blockNumber;
+        this.running = true;
+    }
+
+    updateLocation() {
+        if(/**( this.x + this.width > myGameArea.canvas.width) || */(this.x < 0)) {
+            this.minusX *= -1;
+        }
+        if((this.y + this.height > myGameArea.canvas.height) || (this.y < 0)) {
+            this.minusY *= -1;
+        }
+        for(var j = 0; j < squares.length; j++) { // 確認是否與其他方塊碰撞
+            if(!((this.x == squares[j].x) && (this.y == squares[j].y))) { // 確認這個方塊不是自己
+                if((this.x + this.width == squares[j].x) || (squares[j].x + squares[j].width == this.x)) {   //x重疊
+                    if(((squares[j].y - this.y <= this.height) && (squares[j].y - this.y >= 0)) || ((this.y - squares[j].y <= squares[j].height) && (this.y - squares[j].y >= 0))) {
+                        if(this.x > squares[j].x) {
+                            this.minusX = positiveNumber(this.minusX);
+                            squares[j].minusX = negetiveNumber(squares[j].minusX);
+                        }
+                        else {
+                            this.minusX = negetiveNumber(this.minusX);
+                            squares[j].minusX = positiveNumber(squares[j].minusX);    
+                        }
+                    }        
+                }
+                if((this.y + this.height == squares[j].y) || (squares[j].y + squares[j].height == this.y)) {   //y重疊
+                    if(((squares[j].x - this.x <= this.width) && (squares[j].x - this.x >= 0)) || ((this.x - squares[j].x <= squares[j].width) && (this.x - squares[j].x >= 0))) {
+                        if(this.y > squares[j].y) {
+                            this.minusY = positiveNumber(this.minusY);
+                            squares[j].minusY = negetiveNumber(squares[j].minusY);
+                        }
+                        else {
+                            this.minusY = negetiveNumber(this.minusY);
+                            squares[j].minusY = positiveNumber(squares[j].minusY);    
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    update() {
+        myGameArea.context.fillStyle = this.color;
+        myGameArea.context.fillRect(this.x, this.y, this.width, this.height);
+        if((this.x + this.width > (myGameArea.canvas.width - 100)) && this.running) {
+            winList.push(this.blockNumber);
+            this.running = false;
+        }
+        if(this.x > myGameArea.canvas.width + 2000 - 100 * winList.length) {
+            this.minusX = 0;
+            this.minusY = 0;
+        }
+    }
+}  
+  
+function absolute(x) {
+    if(x < 0) {
+        x = -x;
+    }
+    return x;
+}
+
+function positiveNumber(x) {
+    return absolute(x);
+}
+
+function negetiveNumber(x) {
+    if(x > 0) {
+        x = -x;
+    }
+    return x;
+}
+
+function winColor(x) {
+    var ans = "";
+    var list = [];
+    for(i = 0; i < x.length; i++) {
+        if(x[i] == 1) {
+            list.push("Red");
+        }
+        else if(x[i] == 2) {
+            list.push("Orange"); 
+        }
+        else if(x[i] == 3) {
+            list.push("Green");
+        }
+        else if (x[i] == 4) {
+            list.push("Blue");
+        }
+    }
+    for(i = 0; i < list.length; i++) {
+        ans = ans + (i + 1) + "." + list[i] + " ";
+    }
+    if(list.length == 3) {
+        for(var k = 0; k < 4; k++) {
+            if(squares[k].running) {
+                console.log(k);
+                ans = ans + "4." + squares[k].color + " ";
+                end();
+            }
+        }
+    }
+    return ans;
+}
+
+function getRandom(maxPoint) {
+    var m = maxPoint;
+    var x = Math.random();
+    x = Math.floor(x * m) + 1;
+    return x;
+}
+
+function require() {
+    bet.money = document.getElementById("betMoney").value;
+    bet.number = document.getElementById("betNumber").value;
+    if(check(bet.money, "money") && check(bet.number, "number") && (nowPlayMode == "setting")) {
+        squares = [];
+        winList = [];
+        finalLine = 0;
+        startGame();
+        moneyOfPlayer -= bet.money;
+        nowPlayMode = "racing";
+        document.getElementById("warning").innerHTML = "";
+    }
+    else {
+        document.getElementById("warning").innerHTML = "您的輸入有誤!請重新檢查後輸入!";
+    }
+}
+
+function end() {
+    myGameArea.stop();
+    nowPlayMode = "setting";
+    if(Number(bet.number) == Number(winList[5])) { //因為有五個object已經在終點線後
+        moneyOfPlayer += (10 * bet.money);
+    }
+    else if(Number(bet.number) == Number(winList[6])) {
+        moneyOfPlayer += (2 * bet.money);
+    }
+    document.getElementById("money").innerHTML = "Money: " + moneyOfPlayer;
+}
+
+function playerAskToStop() {
+    if(nowPlayMode == "racing") {
+        end();
+    }
+    else if(nowPlayMode == "setting") {
+        document.getElementById("warning").innerHTML = "可以不要亂按停止鍵嗎?";
+    }
+}
+
+function check(value, type) {
+    var val = Number(value);
+    if(type == "money") {
+        if(val % 1 != 0) {
+            return false;
+        }
+        if(val > moneyOfPlayer) {
+            return false;
+        }
+        if(val <= 0) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+    else if(type == "number") {
+        if((val == 1) || (val == 2) || (val == 3) || (val == 4)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+}
+
+document.getElementById("money").innerHTML = "Money: " + moneyOfPlayer;
+</script>
+</body>
+</html>
